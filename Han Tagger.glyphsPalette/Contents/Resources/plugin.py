@@ -50,22 +50,20 @@ class HanTagger(PalettePlugin):
 			callback=self.initializeCallback)
 
 		segment_descriptions = [
+			dict(title='0', width=15),
 			dict(title='+', width=15),
-			dict(title='-', width=15),
-			dict(title='0', width=15)
+			dict(title='-', width=15)
 		]
 
 		self.paletteView.group.left.text  = TextBox((0, 3, 50, 20), Glyphs.localize({'en': u'Left',  'zh': u'左'}), alignment='center', sizeStyle='mini')
 		self.paletteView.group.right.text = TextBox((0, 3, 50, 20), Glyphs.localize({'en': u'Right', 'zh': u'右'}), alignment='center', sizeStyle='mini')
 
-		self.paletteView.group.left.up    = SegmentedButton((0, 23, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.buttonCallback)
-		self.paletteView.group.left.mid   = SegmentedButton((0, 43, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.buttonCallback)
-		self.paletteView.group.left.down  = SegmentedButton((0, 63, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.buttonCallback)
-		self.paletteView.group.right.up   = SegmentedButton((0, 23, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.buttonCallback)
-		self.paletteView.group.right.mid  = SegmentedButton((0, 43, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.buttonCallback)
-		self.paletteView.group.right.down = SegmentedButton((0, 63, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.buttonCallback)
-
-		self.buttonValueMapping = {1:0, -1:1, 0:2}
+		self.paletteView.group.left.up    = SegmentedButton((0, 23, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.leftUpButtonCallback)
+		self.paletteView.group.left.mid   = SegmentedButton((0, 43, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.leftMidButtonCallback)
+		self.paletteView.group.left.down  = SegmentedButton((0, 63, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.leftDownButtonCallback)
+		self.paletteView.group.right.up   = SegmentedButton((0, 23, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.rightUpButtonCallback)
+		self.paletteView.group.right.mid  = SegmentedButton((0, 43, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.rightMidButtonCallback)
+		self.paletteView.group.right.down = SegmentedButton((0, 63, 55, 10), segment_descriptions, sizeStyle='mini', selectionStyle='one', callback=self.rightDownButtonCallback)
 
 		# Set dialog to NSView
 		self.dialog = self.paletteView.group.getNSView()
@@ -74,20 +72,21 @@ class HanTagger(PalettePlugin):
 	def start(self):
 		# Adding a callback for the 'GSUpdateInterface' event
 		Glyphs.addCallback(self.update, UPDATEINTERFACE)
-		# Glyphs.addCallback(self.buttonCallback, UPDATEINTERFACE)
-		# Glyphs.addCallback(self.buttonLeftUpCallback, UPDATEINTERFACE)
-		# Glyphs.addCallback(self.initializeCallback, UPDATEINTERFACE)
 
 	@objc.python_method
 	def __del__(self):
 		Glyphs.removeCallback(self.update)
-		Glyphs.removeCallback(self.buttonCallback)
+		Glyphs.removeCallback(self.leftUpButtonCallback)
+		Glyphs.removeCallback(self.leftMidButtonCallback)
+		Glyphs.removeCallback(self.leftDownButtonCallback)
+		Glyphs.removeCallback(self.rightUpButtonCallback)
+		Glyphs.removeCallback(self.rightMidButtonCallback)
+		Glyphs.removeCallback(self.rightDownButtonCallback)
 		Glyphs.removeCallback(self.initializeCallback)
 
 	@objc.python_method
 	def update(self, sender):
 		font = sender.object()
-		print('Font:', font)
 
 		if font.currentTab:
 			# In the Edit View
@@ -95,44 +94,75 @@ class HanTagger(PalettePlugin):
 		else:
 			# In the Font view
 			try:
-				if len(font.selection) is 1:
-					hanTag = font.selection[0].userData['HanTag']
-					self.paletteView.group.left.up.set(self.buttonValueMapping[hanTag['LeftKern'][0]])
-					self.paletteView.group.left.mid.set(self.buttonValueMapping[hanTag['LeftKern'][1]])
-					self.paletteView.group.left.down.set(self.buttonValueMapping[hanTag['LeftKern'][2]])
-					self.paletteView.group.right.up.set(self.buttonValueMapping[hanTag['RightKern'][0]])
-					self.paletteView.group.right.mid.set(self.buttonValueMapping[hanTag['RightKern'][1]])
-					self.paletteView.group.right.down.set(self.buttonValueMapping[hanTag['RightKern'][2]])
-				else:
-					self.paletteView.group.left.up.set(-1)
-					self.paletteView.group.left.mid.set(-1)
-					self.paletteView.group.left.down.set(-1)
-					self.paletteView.group.right.up.set(-1)
-					self.paletteView.group.right.mid.set(-1)
-					self.paletteView.group.right.down.set(-1)
-				# s = set([i.userData['HanTag']['LeftKern'][0] for i in font.selection])
-				# print(s)
-				# if len(s) is 1:
-				# 	self.paletteView.group.left.up.set(self.buttonValueMapping[s[0]])
+				leftUpKern    = []
+				leftMidKern   = []
+				leftDownKern  = []
+				rightUpKern   = []
+				rightMidKern  = []
+				rightDownKern = []
+
+				for i in font.selection:
+					leftUpKern.append(i.userData['HanTag']['LeftKern'][0])
+					leftMidKern.append(i.userData['HanTag']['LeftKern'][1])
+					leftDownKern.append(i.userData['HanTag']['LeftKern'][2])
+					rightUpKern.append(i.userData['HanTag']['RightKern'][0])
+					rightMidKern.append(i.userData['HanTag']['RightKern'][1])
+					rightDownKern.append(i.userData['HanTag']['RightKern'][2])
+
+				leftUpKern    = list(set(leftUpKern))
+				leftMidKern   = list(set(leftMidKern))
+				leftDownKern  = list(set(leftDownKern))
+				rightUpKern   = list(set(rightUpKern))
+				rightMidKern  = list(set(rightMidKern))
+				rightDownKern = list(set(rightDownKern))
+
+				self.paletteView.group.left.up.set(leftUpKern[0] if len(leftUpKern) is 1 else -1)
+				self.paletteView.group.left.mid.set(leftMidKern[0] if len(leftMidKern) is 1 else -1)
+				self.paletteView.group.left.down.set(leftDownKern[0] if len(leftDownKern) is 1 else -1)
+				self.paletteView.group.right.up.set(rightUpKern[0] if len(rightUpKern) is 1 else -1)
+				self.paletteView.group.right.mid.set(rightMidKern[0] if len(rightMidKern) is 1 else -1)
+				self.paletteView.group.right.down.set(rightDownKern[0] if len(rightDownKern) is 1 else -1)
+
 			except:
 				pass
 
-	# 	# Send text to dialog to display
-	# 	# self.textField.setStringValue_('\n'.join(text))
-	# 	self.paletteView.group.text.set('\n'.join(text))
+	@objc.python_method
+	def leftUpButtonCallback(self, sender):
+		for i in Glyphs.font.selection:
+			i.userData['HanTag']['LeftKern'][0] = sender.get()
 
+	@objc.python_method
+	def leftMidButtonCallback(self, sender):
+		for i in Glyphs.font.selection:
+			i.userData['HanTag']['LeftKern'][1] = sender.get()
 
-	def buttonCallback(self, sender):
-		print('button hit!')
-		print(sender)
+	@objc.python_method
+	def leftDownButtonCallback(self, sender):
+		for i in Glyphs.font.selection:
+			i.userData['HanTag']['LeftKern'][2] = sender.get()
+
+	@objc.python_method
+	def rightUpButtonCallback(self, sender):
+		for i in Glyphs.font.selection:
+			i.userData['HanTag']['RightKern'][0] = sender.get()
+
+	@objc.python_method
+	def rightMidButtonCallback(self, sender):
+		for i in Glyphs.font.selection:
+			i.userData['HanTag']['RightKern'][1] = sender.get()
+
+	@objc.python_method
+	def rightDownButtonCallback(self, sender):
+		for i in Glyphs.font.selection:
+			i.userData['HanTag']['RightKern'][2] = sender.get()
 
 	@objc.python_method
 	def initializeCallback(self, sender):
-		for i in Glyphs.font.glyphs:
+		for i in Glyphs.font.selection:
 			if not i.userData['HanTag']:
 				i.userData['HanTag'] = {
-					'LeftKern':  (0, 0, 0),
-					'RightKern': (0, 0, 0),
+					'LeftKern':  [0, 0, 0],
+					'RightKern': [0, 0, 0],
 				}
 			print('Initialize HanTag for {}!'.format(i.name))
 
